@@ -34,7 +34,7 @@ public:
 		// Subscribe to the simulated robot's laser scan topic and tell ROS to call
 		// this->commandCallback() whenever a new message is published on that topic
 		//laserSub = nh.subscribe("base_scan", 1, &TurtlebotExploration::commandCallback,this);
-		frontierSub = nh.subscribe("frontiers", 10, &TurtlebotNavigator::frontierCallback, this);
+		frontierSub = nh.subscribe("frontiers", 1, &TurtlebotNavigator::frontierCallback, this);
 	}
 	;
 
@@ -45,16 +45,15 @@ public:
 
 	void frontierCallback( const sensor_msgs::PointCloud frontier_cloud )
 	{
-		ROS_INFO("Frontier callback!");
+		//ROS_INFO("Frontier callback!");
 		tf::StampedTransform transform;
 		tfListener->waitForTransform("/map", "/odom", ros::Time(0), ros::Duration(3.0));
 		tfListener->lookupTransform("/map", "/odom", ros::Time(0), transform);
-		tfListener->lookupTransform("/odom", "/base_link", ros::Time(0),transform);
-		ROS_INFO("Robot location: x %f y %f", transform.getOrigin().x(), transform.getOrigin().y());
+		//ROS_INFO("Robot location: x %f y %f", transform.getOrigin().x(), transform.getOrigin().y());
 		//		
 		int frontier_i = 0;
 		float closest_frontier_distance = 100000, distance = 0;
-		ROS_INFO("Navigation got %d frontiers", frontier_cloud.points.size());
+		//ROS_INFO("Navigation got %d frontiers", frontier_cloud.points.size());
 		if(frontier_cloud.points.size() == 0)
 			return;
 		//
@@ -63,7 +62,7 @@ public:
 			distance = getDistance(frontier_cloud.points[i].x, transform.getOrigin().x(),
 				frontier_cloud.points[i].y, transform.getOrigin().y());
 			//
-			if(distance > .5 && distance <= closest_frontier_distance) {
+			if(distance > .7 && distance <= closest_frontier_distance) {
 				closest_frontier_distance = distance;
 				frontier_i = i;
 			}
@@ -79,7 +78,7 @@ public:
 		int attempts = 0;
 		while(!at_target && attempts < 5) {
 			//
-			if(attempts > 0){
+			if(attempts >= 0){
 				frontier_i = (rand() % frontier_cloud.points.size());
 				at_target = false;
 			}
@@ -93,9 +92,10 @@ public:
 			//
 			MoveBaseClient ac("move_base", true);
 			//wait for the action server to come up
-			while(!ac.waitForServer(ros::Duration(5.0))){
+			while(!ac.waitForServer(ros::Duration(10.0))){
 				ROS_INFO("Waiting for the move_base action server to come up");
 			}
+			
 			ac.sendGoal(goal);
 			ac.waitForResult();
 
@@ -113,7 +113,7 @@ public:
 	// processed in a timely manner, and also for sending
 	// velocity controls to the simulated robot based on the FSM state
 	void spin() {
-		ros::Rate rate(10); // Specify the FSM loop rate in Hz
+		ros::Rate rate(50); // Specify the FSM loop rate in Hz
 		while (ros::ok()) { // Keep spinning loop until user presses Ctrl+C
 			ros::spinOnce(); // Need to call this function often to allow ROS to process incoming messages
 			rate.sleep(); // Sleep for the rest of the cycle, to enforce the FSM loop rate
