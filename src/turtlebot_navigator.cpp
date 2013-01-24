@@ -27,13 +27,6 @@ public:
 		// Initialize random time generator
 		srand(time(NULL));
 		tfListener = &list;
-		// Advertise a new publisher for the simulated robot's velocity command topic
-		// (the second argument indicates that if multiple command messages are in
-		//  the queue to be sent, only the last command will be sent)
-		//commandPub = nh.advertise<geometry_msgs::Twist>("cmd_vel", 1);
-		// Subscribe to the simulated robot's laser scan topic and tell ROS to call
-		// this->commandCallback() whenever a new message is published on that topic
-		//laserSub = nh.subscribe("base_scan", 1, &TurtlebotExploration::commandCallback,this);
 		frontierSub = nh.subscribe("frontiers", 1, &TurtlebotNavigator::frontierCallback, this);
 	}
 	;
@@ -49,7 +42,6 @@ public:
 		tf::StampedTransform transform;
 		tfListener->waitForTransform("/map", "/odom", ros::Time(0), ros::Duration(3.0));
 		tfListener->lookupTransform("/map", "/odom", ros::Time(0), transform);
-		//ROS_INFO("Robot location: x %f y %f", transform.getOrigin().x(), transform.getOrigin().y());
 		//		
 		int frontier_i = 0;
 		float closest_frontier_distance = 100000, distance = 0;
@@ -76,7 +68,7 @@ public:
 		//
 		bool at_target = false;
 		int attempts = 0;
-		while(!at_target && attempts < 5) {
+		while(!at_target && attempts < 2) {
 			//
 			if(attempts >= 0){
 				frontier_i = (rand() % frontier_cloud.points.size());
@@ -84,10 +76,12 @@ public:
 			}
 			attempts++;
 
-			ROS_INFO("Frontier index: %d", frontier_i);			
+			// ROS_INFO("Frontier index: %d", frontier_i);			
 			goal.target_pose.pose.position.x = frontier_cloud.points[frontier_i].x;
 			goal.target_pose.pose.position.y = frontier_cloud.points[frontier_i].y;
-			goal.target_pose.pose.orientation.w = 1.0;
+			// Just give an orientation, since we are going to rotate in place at the destination
+			geometry_msgs::Quaternion odom_quat = tf::createQuaternionMsgFromYaw(0);
+			goal.target_pose.pose.orientation = odom_quat;
 			ROS_INFO("Navigating to: x: %f y: %f", goal.target_pose.pose.position.x, goal.target_pose.pose.position.y);
 			//
 			MoveBaseClient ac("move_base", true);
@@ -97,13 +91,15 @@ public:
 			}
 			
 			ac.sendGoal(goal);
-			ac.waitForResult();
+			ac.waitForResult(ros::Duration(45.0));
 
 			if(ac.getState() == actionlib::SimpleClientGoalState::SUCCEEDED) {
 				at_target = true;
-			  	ROS_INFO("Hooray, the base moved to %f,%f", goal.target_pose.pose.position.x, goal.target_pose.pose.position.y);
-			} else {
-			  	ROS_INFO("The base failed to move");
+			  	ROS_INFO("The base moved to %f,%f", goal.target_pose.pose.position.x, goal.target_pose.pose.position.y);
+			  	geometry_msgs::Quaternion odom_quat = tf::createQuaternionMsgFromYaw(3.14);
+				goal.target_pose.pose.orientation = odom_quat;
+				ac.sendGoal(goal);
+				ac.waitForResult();
 			}
 		}
 	}
